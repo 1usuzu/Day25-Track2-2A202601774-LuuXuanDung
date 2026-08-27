@@ -7,6 +7,7 @@ import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
 from missions._common import load_csv, num, catalog_by_type
 from finops import pricing
+from finops.sustainability import carbon_g
 
 DAYS = 30
 
@@ -15,6 +16,7 @@ def run(verbose: bool = True) -> dict:
     jobs = load_csv("workloads.csv")
     cat = catalog_by_type()
     on_demand_monthly = optimized_monthly = 0.0
+    total_carbon_saved_kg = 0.0
     recs = []
     for j in jobs:
         gtype = j["gpu_type"]
@@ -35,6 +37,14 @@ def run(verbose: bool = True) -> dict:
         else:
             opt_cost = on_demand_cost
 
+        # Carbon-aware Scheduling:
+        if interruptible:
+            # Điện năng tiêu thụ (Watt-hour) = số giờ GPU * công suất (Watts)
+            wh = gpu_hours * num(c["watts"])
+            carbon_us = carbon_g(wh, "us-east-1")
+            carbon_eu = carbon_g(wh, "europe-north1")
+            total_carbon_saved_kg += (carbon_us - carbon_eu) / 1000.0
+
         on_demand_monthly += on_demand_cost
         optimized_monthly += opt_cost
         recs.append({"job_id": j["job_id"], "gpu_type": gtype, "tier": tier,
@@ -50,6 +60,7 @@ def run(verbose: bool = True) -> dict:
         for r in recs:
             print(f"{r['job_id']:18}{r['gpu_type']:7}{r['tier']:11}${r['on_demand']:>11,}${r['optimized']:>11,}")
         print(f"\nmonthly: on-demand ${on_demand_monthly:,.0f} -> optimized ${optimized_monthly:,.0f}  ({savings_pct:.1f}% saved)")
+        print(f"Carbon-aware scheduling: Moving jobs to europe-north1 saves {total_carbon_saved_kg:,.1f} kg CO2e/month!")
 
     return {"recommendations": recs, "on_demand_monthly": round(on_demand_monthly),
             "optimized_monthly": round(optimized_monthly), "savings_pct": round(savings_pct, 1)}

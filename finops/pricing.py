@@ -102,3 +102,19 @@ def spot_checkpoint_cost(
         "on_demand_cost": round(on_demand_cost, 2),
         "savings_pct": round(savings_pct, 1),
     }
+
+def cache_is_worth_it(
+    avg_cache_reads: float,
+    write_cost_per_m: float,
+    price_in_per_m: float,
+    read_discount: float = 0.10
+) -> bool:
+    """Cache chỉ tiết kiệm tiền khi tổng tiết kiệm từ đọc > chi phí ghi."""
+    # Mỗi lần đọc từ cache sẽ tiết kiệm được 90% (1.0 - 0.10) so với đọc bình thường
+    savings_per_read = price_in_per_m * (1.0 - read_discount)
+    
+    # Tổng số tiền tiết kiệm được sau nhiều lần đọc
+    total_savings = avg_cache_reads * savings_per_read
+    
+    # Nếu tổng tiết kiệm lớn hơn chi phí ghi -> Có lãi, nên dùng Cache!
+    return total_savings > write_cost_per_m

@@ -26,7 +26,18 @@ def run(verbose: bool = True) -> dict:
         base_cost += pricing.request_cost(inp, out, lin, lout)
         # OPTIMIZED: cascade (route_tier), prompt caching, batch API
         pin, pout = MODEL_PRICES[r["route_tier"]]
-        opt_cost += pricing.request_cost(inp, out, pin, pout, cached_in=cached, batch=is_batch)
+        
+        # Giả định: Trung bình đoạn prompt này sẽ được đọc lại 1.5 lần
+        avg_reads = 1.5 
+        write_cost = 1.25 * pin
+        
+        # Kiểm tra xem có nên xài cache không
+        if pricing.cache_is_worth_it(avg_reads, write_cost, pin):
+            # Nếu đáng tiền, bật cache
+            opt_cost += pricing.request_cost(inp, out, pin, pout, cached_in=cached, batch=is_batch)
+        else:
+            # Nếu không đáng tiền, không xài cache (bỏ cached_in đi)
+            opt_cost += pricing.request_cost(inp, out, pin, pout, cached_in=0, batch=is_batch)
 
     base_pm = pricing.dollars_per_million(base_cost, total_tokens)
     opt_pm = pricing.dollars_per_million(opt_cost, total_tokens)
